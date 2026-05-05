@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=0.7" />
+  <title>解包器 - TurboOre - 初源联盟工作室</title>
+  <meta name="keywords" content="ore,解包器,Scratch,TurboWarp" />
+  <meta name="description" content="将 TurboWarp 的打包作品转为 Scratch 源代码。" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="shortcut icon" href="favicon.svg" type="image/svg+xml" />
+  <style>
+    @font-face {   
+      font-family: 'CurrentFont';   
+      src: url('./fonts/currentFont.woff2') format('woff2');   
+      font-weight: normal;   
+      font-style: normal;   
+      font-display: swap;   
+    }   
+    @font-face {   
+      font-family: 'SerifFont';   
+      src: url('./fonts/serifFont.woff2') format('woff2');   
+      font-weight: normal;   
+      font-style: normal;   
+      font-display: swap;   
+    }   
+    @font-face {   
+      font-family: 'CodeFont';   
+      src: url('./fonts/codeFont.woff2') format('woff2');   
+      font-weight: normal;   
+      font-style: normal;   
+      font-display: swap;   
+    }   
+    @font-face {   
+      font-family: 'CodeFontItalic';   
+      src: url('./fonts/codeFontItalic.woff2') format('woff2');   
+      font-weight: normal;   
+      font-style: normal;   
+      font-display: swap;   
+    }   
+    * {   
+      font-family: 'CurrentFont', sans-serif !important;   
+    }   
+    html, body {   
+      overflow-x: hidden;
+      overflow-y: auto;
+      touch-action: manipulation;   
+      height: 100%;   
+      margin: 0;   
+      background-size: cover;   
+      background-position: center;   
+      background-attachment: fixed;   
+      min-height: 100vh;   
+    }   
+    .serif, blockquote,h1,h2,h3,h4,h5,h6,b,strong {   
+      font-family: 'SerifFont', serif !important;   
+    }   
+    code, pre {   
+      font-family: 'CodeFont', monospace !important;   
+      font-style: normal !important;   
+    }   
+    code em, code i, pre em, pre i {   
+      font-family: 'CodeFontItalic', monospace !important;   
+      font-style: normal !important;   
+    }   
+    #loading-mask {   
+      position: fixed;   
+      inset: 0;   
+      z-index: 9999;   
+      display: flex;   
+      flex-direction: column; 
+      align-items: center;   
+      justify-content: center;   
+      transition: opacity 0.8s cubic-bezier(0.25, 0.1, 0.25, 1);   
+      background: #ebfbee;   
+    }   
+    @media (prefers-color-scheme: dark) {   
+      #loading-mask {   
+        background: #0b6a1e;   
+      }
+      body {
+        --tw-bg-opacity: 1;
+        background-color: rgb(15 23 42 / var(--tw-bg-opacity)) !important;
+      }
+    } 
+    .loading-spinner {   
+      width: 40px;   
+      height: 40px;   
+      border: 3px solid #D3F9d8;   
+      border-top-color: #2f9e44;   
+      border-radius: 50%;   
+      animation: spin 0.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;   
+    } 
+    .loading-footer { 
+      position: absolute; 
+      bottom: 40px; 
+      left: 50%; 
+      transform: translateX(-50%); 
+      width: 340px; 
+      opacity: 0; 
+      transition: opacity 0.7s cubic-bezier(0.25, 0.7, 0.25, 1); 
+    } 
+    .loading-footer.show { 
+      opacity: 1; 
+    } 
+    @keyframes spin {   
+      to { transform: rotate(360deg); }   
+    }   
+    #loading-mask.fade-out {   
+      opacity: 0;   
+      pointer-events: none;   
+    }
+    *{transition: all 0.2s ease-in-out;}
+/* 解包器核心样式 */
+.project {
+  padding: 8px;
+  border-radius: 8px;
+  margin: 16px 0;
+  box-sizing: border-box;
+  transition: .2s background-color;
+  border: 1px solid rgba(76, 78, 208, 0.8);
+  background-color: rgba(76, 78, 208, 0.2);
+}
+.project[data-success] {
+  border-color: rgba(91, 181, 91, 0.8);
+  background-color: rgba(0, 255, 0, 0.2);
+}
+.project[data-error] {
+  border-color: rgba(255, 67, 67, 0.8);
+  background-color: rgba(255, 0, 0, 0.2);
+}
+.project-title {
+  margin: 0 0 16px 0;
+}
+.error-stack {
+  font-family: 'CodeFont', monospace;
+  margin-bottom: 0;
+  margin-top: 16px;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+.drag-effect {
+  opacity: 0;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  border: 10px dashed rgb(110, 110, 255);
+  pointer-events: none;
+  transition: .2s opacity;
+  z-index: 999;
+}
+.dragging .drag-effect {
+  opacity: 1;
+}
+.notice {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px;
+  border: 1px solid rgb(255, 149, 0);
+  background-color: rgba(255, 145, 0, 0.2);
+  border-radius: 8px;
+}
+input[type=file] {
+  width: 100%;
+}
+  </style>
+  <script>
+    tailwind.config = {   
+      darkMode: 'media',   
+      theme: {   
+        colors: {   
+          green: {50:'#EBFBEE',100:'#D3F9D8',200:'#B2F2BB',300:'#8CE99A',400:'#69DB7C',500:'#51CF66',600:'#40C057',700:'#37B24D',800:'#2F9E44',900:'#2B8A3E'},   
+          white: '#fff', black: '#000', transparent: 'transparent'   
+        }
+      }   
+    }
+    window.onload = function() {
+      setTimeout(() => {
+        document.getElementById('loading-mask').classList.add('fade-out');
+        document.getElementById('loadingFooter').classList.add('show');
+      }, 1000);
+    }
+    function checkFooterImageLoaded() {}
+  </script>
+</head>
+<body oncontextmenu="return false;" class="bg-[url('./pictures/light_backdrop.jpg')] dark:bg-[url('./pictures/dark_backdrop.jpg')] text-gray-900 dark:text-white p-4">
+  <noscript>
+    <title>请先启用 JavaScript 再访问此页面。</title>
+    <h1 style="text-align:center;" class="serif">初源联盟工作室 - 解包器</h1>
+    <h2 style="text-align:center" class="text-red-600 dark:text-red-400">本页面依赖 JavaScript 运行，请启用或更换浏览器。</h2>
+  </noscript>
+  <div id="loading-mask">
+    <div class="loading-spinner"></div>
+    <div class="loading-footer" id="loadingFooter">
+      <img src="./pictures/index/light_footer.png" class="block dark:hidden w-full h-auto" onload="checkFooterImageLoaded()" alt="首次加载可能较慢，请耐心等待" />
+      <img src="./pictures/index/dark_footer.png" class="hidden dark:block w-full h-auto" onload="checkFooterImageLoaded()" alt="首次加载可能较慢，请耐心等待" />
+    </div>
+  </div>
+
+  <header class="fixed top-0 left-0 right-0 rounded-[12px] backdrop-blur-[6px] bg-white/40 dark:bg-black/40 px-6 py-4 shadow-sm z-20">
+    <div class="max-w-7xl mx-auto flex items-center justify-center">
+      <h1 class="text-[clamp(1.2rem,3vw,1.8rem)] font-medium serif text-gray-900 dark:text-white">
+        初源联盟工作室
+      </h1>
+    </div>
+  </header>
+
+  <main class="max-w-2xl mx-auto pt-24 pb-20">
+    <div class="rounded-[12px] backdrop-blur-[6px] bg-white/40 dark:bg-black/40 px-6 py-6 shadow-xl mb-6">
+      <h1 class="text-[clamp(1.3rem,3vw,1.6rem)] font-medium serif mb-4">解包器</h1>
+      <p class="mb-3">上传一个由 TurboWarp 或 TurboOre 打包生成的 HTML 或 ZIP 文件，工具会尝试还原为普通 Scratch 项目文件。</p>
+      <p class="notice mb-4">拥有项目的打包版本，并不代表你拥有合法权限对其进行解包、使用、修改、重新分发、销售，或无视版权法的其他行为。使用前请咨询项目创作者。</p>
+      
+      <!-- Tailwind 自定义上传区域 -->
+<div 
+  class="border-2 border-dashed border-gray-300 rounded-lg p-12 flex flex-col items-center justify-center gap-5 cursor-pointer hover:border-green-400"
+  onclick="document.querySelector('.file-input').click()"
+>
+  <!-- 上传图标 -->
+  <div class="text-6xl text-gray-300">
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-20 w-20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 13h-4m2-2v4" />
+    </svg>
+  </div>
+
+  <!-- 提示文字 -->
+  <p class="text-gray-600 text-xl">点击此区域上传或将文件拖到此处</p>
+</div>
+
+<!-- 你修改好的 input 行 -->
+<input type="file" class="file-input mb-4 hidden" accept=".zip,.html" multiple>
+
+      <div class="download-section mb-6"></div>
+
+      <h2 class="text-lg font-medium serif mb-3">手动解包申请</h2>
+      <p class="mb-3">如果解包器无法处理某个项目，你可以<a href="https://github.com/TurboWarp/unpackager/issues/new?template=unpackage-request.yml" class="text-green-600 dark:text-green-400 hover:text-green-900">提交手动解包申请</a>，由志愿者协助处理。</p>
+      <p class="mb-4">后续我们会补充完整的手动解包教程，目前尚未完成。</p>
+
+      <h2 class="text-lg font-medium serif mb-3">支持的打包工具</h2>
+      <ul class="list-disc pl-5 mb-4 space-y-1">
+        <li><a href="https://packager.turbowarp.org/" class="text-green-600 dark:text-green-400 hover:text-green-900">TurboWarp 打包器</a> 及所有基于它的工具 — 支持全部格式</li>
+        <li><a href="https://forkphorus.github.io/packager/" class="text-green-600 dark:text-green-400 hover:text-green-900">forkphorus 打包器</a> — 支持全部格式</li>
+        <li><a href="https://sheeptester.github.io/htmlifier/" class="text-green-600 dark:text-green-400 hover:text-green-900">HTMLifier</a> — HTML、zip</li>
+      </ul>
+
+      <h2 class="text-lg font-medium serif mb-3">源码 & 隐私</h2>
+      <p class="mb-2">解包器是<a href="https://github.com/TurboWarp/unpackager" class="text-green-600 dark:text-green-400 hover:text-green-900">开源项目</a>。</p>
+      <p class="mb-4">所有文件均在你的电脑本地处理，绝不会上传到任何服务器。</p>
+
+      <h2 class="text-lg font-medium serif mb-3">我不希望别人解包我的项目</h2>
+      <p class="text-sm leading-relaxed">这类项目打包工具的原理，都是把项目文件和运行器嵌入到同一个文件中。解包器仅复用读取逻辑，此问题并非 Scratch 独有。若有顾虑，可了解数字版权管理（DRM）相关技术。</p>
+    </div>
+  </main>
+
+  <div class="drag-effect"></div>
+  <script src="dependencies/jszip.min.js"></script>
+  <script src="unpackager.js"></script>
+  <script>
+    (function() {
+      'use strict';
+      const fileInput = document.querySelector('.file-input');
+      const downloadSection = document.querySelector('.download-section');
+      const processFile = async (file) => {
+        const unpackaged = await unpackage(file);
+        const type = unpackaged.type;
+        const data = unpackaged.data;
+        const name = `${file.name}.${type}`;
+        const blob = new Blob([data], {
+          type: `application/x.scratch.${type}`
+        });
+        blob.name = name;
+        return blob;
+      };
+      const processInput = async () => {
+        if (!fileInput.files[0]) {
+          return;
+        }
+        while (downloadSection.firstChild) {
+          if (downloadSection.firstChild.href) {
+            URL.revokeObjectURL(downloadSection.firstChild.href);
+          }
+          downloadSection.firstChild.remove();
+        }
+        for (const file of fileInput.files) {
+          const projectElement = document.createElement('div');
+          projectElement.className = 'project';
+          downloadSection.appendChild(projectElement);
+          const projectTitleElement = document.createElement('h3');
+          projectTitleElement.textContent = file.name;
+          projectTitleElement.className = 'project-title serif';
+          projectElement.appendChild(projectTitleElement);
+          const statusElement = document.createElement('div');
+          statusElement.textContent = '正在处理...';
+          projectElement.appendChild(statusElement);
+          try {
+            const blob = await processFile(file);
+            projectElement.dataset.success = true;
+            while (statusElement.firstChild) {
+              statusElement.removeChild(statusElement.firstChild);
+            }
+            const downloadElement = document.createElement('a');
+            downloadElement.href = URL.createObjectURL(blob);
+            downloadElement.download = blob.name;
+            downloadElement.className = "text-green-600 dark:text-green-400 hover:text-green-900";
+            downloadElement.textContent = `下载 ${blob.name}（${(blob.size / 1000 / 1000).toFixed(2)}MB）`;
+            statusElement.appendChild(downloadElement);
+            downloadElement.click();
+          } catch (e) {
+            console.error(e);
+            projectElement.dataset.error = true;
+            while (statusElement.firstChild) {
+              statusElement.removeChild(statusElement.firstChild);
+            }
+            statusElement.innerHTML = '文件无法解包。可尝试<a href="https://github.com/TurboWarp/unpackager/issues/new?template=unpackage-request.yml" class="text-green-600 dark:text-green-400 hover:text-green-900">提交手动解包申请</a>。';
+            const errorElement = document.createElement('div');
+            errorElement.className = 'error-stack';
+            errorElement.textContent = (e && e.stack) ? e.stack : e;
+            projectElement.appendChild(errorElement);
+          }
+        }
+      };
+      fileInput.addEventListener('change', (e) => {
+        processInput();
+      });
+      document.documentElement.addEventListener('drop', (e) => {
+        document.documentElement.classList.remove('dragging');
+        if (e.dataTransfer.types.includes('Files')) {
+          e.preventDefault();
+          fileInput.files = e.dataTransfer.files;
+          processInput();
+        }
+      });
+      document.documentElement.addEventListener('dragleave', (e) => {
+        document.documentElement.classList.remove('dragging');
+      });
+      document.documentElement.addEventListener('dragover', (e) => {
+        if (e.dataTransfer.types.includes('Files')) {
+          document.documentElement.classList.add('dragging');
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'copy';
+        }
+      });
+    }());
+  </script>
+
+  <a href="https://github.com/originallyxs/originallyxs.github.io" target="_blank" class="fixed left-4 bottom-[80px] backdrop-blur-[6px] bg-white/40 dark:bg-black/40 hover:bg-white/60 dark:hover:bg-black/50 px-3 py-2 rounded-[12px] text-sm text-gray-800 dark:text-white flex items-center gap-2 transition-all z-40 shadow-sm">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" class="flex-shrink-0">
+      <title>编辑此页面</title>
+      <g id="pen_line" fill="none">
+        <path d="M24 0v24H0V0zM12.593 23.258l-.011.002-.071.035-.02.004-.014-.004-.071-.035c-.01-.004-.019-.001-.024.005l-.004.01-.017.428.005.02.01.013.104.074.015.004.012-.004.104-.074.012-.016.004-.017-.017-.427c-.002-.01-.009-.017-.017-.018m.265-.113-.013.002-.185.093-.01.01-.003.011.018.43.005.012.008.007.201.093c.012.004.023 0 .029-.008l-.004-.014-.034-.614c-.003-.012-.01-.02-.02-.022m-.715.002a.023.023 0 0 0-.027.006l-.006.014-.034.614c0 .012.007.02.017.024l-.015-.002.201-.093.01-.008.004-.011.017-.43-.003-.012-.01-.01z"></path>
+        <path fill="currentColor" d="M12.138 4.538a2 2 0 0 1 2.031.328l.126.115 4.724 4.724a2 2 0 0 1 .5 1.997l-.057.16-2.365 5.913a1.999 1.999 0 0 1-1.605 1.24l-5.079.635c-.13.015-.268.034-.41.056l-.444.072-.232.042-.723.14-.495.106-.745.167-.955.228-1.552.396-.646.174a1.01 1.01 0 0 1-1.265-1.134l.034-.146.295-1.112.264-1.048.228-.955.167-.745.105-.496.141-.722.08-.457.064-.428.66-5.28a1.999 1.999 0 0 1 1.09-1.536l.151-.069zm.742 1.857L6.968 8.76l-.584 4.672-.048.396a26.886 26.886 0 0 1-.385 2.192l-.171.786 3.288-3.288a2 2 0 1 1 1.414 1.414L7.194 18.22l.392-.087.784-.165a27.455 27.455 0 0 1 1.473-.26l5.397-.676 2.365-5.912zm2.363-3.294a1 1 0 0 1 1.32-.084l.094.084 4.242 4.242a1 1 0 0 1-1.32 1.498l-.094.084-4.242-4.242a1 1 0 0 1 0-1.414"></path>
+      </g>
+    </svg>
+    编辑此页面
+  </a>
+  <a href="https://forms.cloud.microsoft/r/B2VQSTyAZL" target="_blank" class="fixed right-4 bottom-[80px] backdrop-blur-[6px] bg-white/40 dark:bg-black/40 hover:bg-white/60 dark:hover:bg-black/50 px-3 py-2 rounded-[12px] text-sm text-gray-800 dark:text-white flex flex-row-reverse items-center gap-2 transition-all z-40 shadow-sm">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" class="flex-shrink-0">
+      <title>add_line</title>
+      <g id="add_line" fill="none">
+        <path d="M24 0v24H0V0zM12.593 23.258l-.011.002-.071.035-.02.004-.014-.004-.071-.035c-.01-.004-.019-.001-.024.005l-.004.01-.017.428.005.02.01.013.104.074.015.004.012-.004.104-.074.012-.016.004-.017-.017-.427c-.002-.01-.009-.017-.017-.018m.265-.113-.013.002-.185.093-.01.01-.003.011.018.43.005.012.008.007.201.093c.012.004.023 0 .029-.008l-.004-.014-.034-.614c-.003-.012-.01-.02-.02-.022m-.715.002a.023.023 0 0 0-.027.006l-.006.014-.034.614c0 .012.007.02.017.024l-.015-.002.201-.093.01-.008.004-.011.017-.43-.003-.012-.01-.01z"></path>
+        <path fill="currentColor" d="M11 20a1 1 0 1 0 2 0v-7h7a1 1 0 1 0 0-2h-7V4a1 1 0 1 0-2 0v7H4a1 1 0 1 0 0 2h7z"></path>
+      </g>
+    </svg>
+    申请加入我们
+  </a>
+
+  <footer class="fixed bottom-0 left-0 right-0 rounded-[12px] backdrop-blur-[6px] bg-white/50 dark:bg-black/30 py-3 text-center text-gray-800 dark:text-white text-sm z-20">
+    <div>
+      Copyright © 2024-<script>document.write(new Date().getFullYear())</script> OriginallyX Coalition Studio.
+      <br />
+      All rights reserved.
+    </div>
+  </footer>
+</body>
+</html>
